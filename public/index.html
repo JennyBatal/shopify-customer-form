@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Add a customer — Shopify sync</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="intro">
+      <div class="intro-inner">
+        <div class="status-pill" aria-hidden="true">
+          <span class="dot"></span>
+          Synced to Shopify
+        </div>
+        <h1>Add a new customer</h1>
+        <p class="intro-copy">
+          Fill in their details once. We'll create the customer record in your
+          Shopify store right away, so they're ready for their next order,
+          live event, or campaign.
+        </p>
+        <dl class="intro-facts">
+          <div>
+            <dt>Where it goes</dt>
+            <dd id="store-domain-label">Your connected Shopify store</dd>
+          </div>
+          <div>
+            <dt>What's required</dt>
+            <dd>Name and email — everything else is optional</dd>
+          </div>
+        </dl>
+      </div>
+    </aside>
+
+    <main class="form-panel">
+      <form id="customer-form" novalidate>
+        <div class="form-grid">
+          <div class="field">
+            <label for="firstName">First name</label>
+            <input id="firstName" name="firstName" type="text" autocomplete="given-name" required />
+            <p class="field-error" id="error-firstName" role="alert"></p>
+          </div>
+
+          <div class="field">
+            <label for="lastName">Last name</label>
+            <input id="lastName" name="lastName" type="text" autocomplete="family-name" required />
+            <p class="field-error" id="error-lastName" role="alert"></p>
+          </div>
+
+          <div class="field span-2">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" autocomplete="email" required />
+            <p class="field-error" id="error-email" role="alert"></p>
+          </div>
+
+          <div class="field">
+            <label for="phone">Phone <span class="optional">(optional)</span></label>
+            <input id="phone" name="phone" type="tel" autocomplete="tel" placeholder="+1 555 000 0000" />
+            <p class="field-error" id="error-phone" role="alert"></p>
+          </div>
+
+          <div class="field">
+            <label for="company">Company <span class="optional">(optional)</span></label>
+            <input id="company" name="company" type="text" autocomplete="organization" />
+          </div>
+
+          <fieldset class="field span-2 address-fieldset">
+            <legend>Address <span class="optional">(optional)</span></legend>
+            <div class="address-grid">
+              <input name="address1" type="text" placeholder="Street address" autocomplete="address-line1" />
+              <input name="city" type="text" placeholder="City" autocomplete="address-level2" />
+              <input name="province" type="text" placeholder="State / province" autocomplete="address-level1" />
+              <input name="zip" type="text" placeholder="ZIP / postal code" autocomplete="postal-code" />
+              <input name="country" type="text" placeholder="Country" autocomplete="country-name" class="span-2" />
+            </div>
+          </fieldset>
+
+          <div class="field span-2">
+            <label for="note">Note <span class="optional">(optional)</span></label>
+            <textarea id="note" name="note" rows="3" maxlength="500" placeholder="Anything the team should know about this customer"></textarea>
+            <p class="field-error" id="error-note" role="alert"></p>
+          </div>
+
+          <div class="field span-2 checkbox-field">
+            <label class="checkbox-label">
+              <input id="acceptsMarketing" name="acceptsMarketing" type="checkbox" />
+              <span>This customer agreed to receive marketing emails</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-footer">
+          <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
+          <button type="submit" id="submit-button">
+            <span class="button-label">Add customer</span>
+            <span class="spinner" aria-hidden="true"></span>
+          </button>
+        </div>
+      </form>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
