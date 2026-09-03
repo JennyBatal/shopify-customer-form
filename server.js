@@ -5,7 +5,8 @@ const rateLimit = require('express-rate-limit');
 
 const {
   SHOPIFY_STORE_DOMAIN,
-  SHOPIFY_ADMIN_API_TOKEN,
+  SHOPIFY_CLIENT_ID,
+  SHOPIFY_CLIENT_SECRET,
   SHOPIFY_API_VERSION = '2026-07',
   PORT = 3000,
 } = process.env;
@@ -87,6 +88,61 @@ function validateCustomerPayload(body) {
   return { clean };
 }
 
+// --- Shopify auth ---------------------------------------------------
+//
+// As of Jan 1, 2026, Shopify no longer issues a static Admin API token
+// directly from the app UI for newly created apps. Instead, apps created in
+// the Dev Dashboard authenticate via the OAuth client credentials grant:
+// exchange the app's Client ID + Client Secret for a short-lived access
+// token (~24h). We cache the token in memory and refresh it shortly before
+// it expires, so normal request handling never pays the extra round trip.
+
+let cachedToken = null; // { token, expiresAt }
+
+async function getAccessToken() {
+  const SAFETY_MARGIN_MS = 60 * 1000;
+
+  if (cachedToken && cachedToken.expiresAt - SAFETY_MARGIN_MS > Date.now()) {
+    return cachedToken.token;
+  }
+
+  if (!SHOPIFY_STORE_DOMAIN || !SHOPIFY_CLIENT_ID || !SHOPIFY_CLIENT_SECRET) {
+    const err = new Error('Shopify credentials are not configured on the server.');
+    err.code = 'CONFIG_MISSING';
+    throw err;
+  }
+
+  const url = `https://${SHOPIFY_STORE_DOMAIN}/admin/oauth/access_token`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      client_id: SHOPIFY_CLIENT_ID,
+      client_secret: SHOPIFY_CLIENT_SECRET,
+      grant_type: 'client_credentials',
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    const err = new Error(`Failed to obtain Shopify access token (${response.status})`);
+    err.code = 'SHOPIFY_AUTH_ERROR';
+    err.detail = text;
+    throw err;
+  }
+
+  const data = await response.json();
+
+  cachedToken = {
+    token: data.access_token,
+    // expires_in is in seconds; fall back to 24h if it's ever missing.
+    expiresAt: Date.now() + (data.expires_in ? data.expires_in * 1000 : 24 * 60 * 60 * 1000),
+  };
+
+  return cachedToken.token;
+}
+
 // --- Shopify client -----------------------------------------------------
 
 const CUSTOMER_CREATE_MUTATION = `
@@ -108,11 +164,7 @@ const CUSTOMER_CREATE_MUTATION = `
 `;
 
 async function createShopifyCustomer(customer) {
-  if (!SHOPIFY_STORE_DOMAIN || !SHOPIFY_ADMIN_API_TOKEN) {
-    const err = new Error('Shopify credentials are not configured on the server.');
-    err.code = 'CONFIG_MISSING';
-    throw err;
-  }
+  const accessToken = await getAccessToken();
 
   const input = {
     firstName: customer.firstName,
@@ -134,7 +186,7 @@ async function createShopifyCustomer(customer) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_TOKEN,
+      'X-Shopify-Access-Token': accessToken,
     },
     body: JSON.stringify({ query: CUSTOMER_CREATE_MUTATION, variables: { input } }),
   });
@@ -189,6 +241,11 @@ app.post('/api/customers', submitLimiter, async (req, res) => {
       return res.status(500).json({ error: 'The server is not configured to reach Shopify yet.' });
     }
 
+    if (err.code === 'SHOPIFY_AUTH_ERROR') {
+      console.error('Shopify auth failed:', err.message, err.detail || '');
+      return res.status(502).json({ error: 'Could not authenticate with Shopify. Please try again shortly.' });
+    }
+
     if (err.code === 'SHOPIFY_USER_ERROR') {
       const fieldErrors = {};
       let generalMessage = 'Shopify could not create this customer.';
@@ -216,7 +273,9 @@ app.get('/healthz', (_req, res) => res.json({ status: 'ok' }));
 
 app.listen(PORT, () => {
   console.log(`Server listening on http://localhost:${PORT}`);
-  if (!SHOPIFY_STORE_DOMAIN || !SHOPIFY_ADMIN_API_TOKEN) {
-    console.warn('Warning: SHOPIFY_STORE_DOMAIN / SHOPIFY_ADMIN_API_TOKEN not set. Copy .env.example to .env and fill them in.');
+  if (!SHOPIFY_STORE_DOMAIN || !SHOPIFY_CLIENT_ID || !SHOPIFY_CLIENT_SECRET) {
+    console.warn(
+      'Warning: SHOPIFY_STORE_DOMAIN / SHOPIFY_CLIENT_ID / SHOPIFY_CLIENT_SECRET not set. Copy .env.example to .env and fill them in.'
+    );
   }
 });
